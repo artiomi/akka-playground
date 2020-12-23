@@ -2,63 +2,66 @@ package my.study.akkaplayground.actors;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
-import akka.actor.typed.javadsl.Receive;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import my.study.akkaplayground.model.Person;
+import my.study.akkaplayground.actors.AccessRecordActor.RecordResponse;
+import my.study.akkaplayground.actors.VehicleActor.VehicleMessage;
 
-public class RootBehaviour extends AbstractBehavior<RootBehaviour.RootActor> {
+public class RootBehaviour {
 
-    private final ActorRef<Person> personActorRef;
+    private final ActorRef<RootCommand> vehicleActorRef;
+    private final ActorContext<RootCommand> context;
 
-    public RootBehaviour(ActorContext<RootBehaviour.RootActor> context) {
-        super(context);
-        personActorRef = context.spawn(PersonActor.create(), "person-actor");
+    private RootBehaviour(ActorContext<RootCommand> context) {
+        this.context = context;
+        vehicleActorRef = context.spawn(VehicleActor.create(), "vehicle-actor");
+
     }
 
-    public static Behavior<RootActor> create() {
-        return Behaviors.setup(RootBehaviour::new);
+    public static Behavior<RootCommand> create() {
+        return Behaviors.setup(ctx -> new RootBehaviour(ctx)
+                .messagesBehaviour());
     }
 
-    @Override
-    public Receive<RootActor> createReceive() {
-        return newReceiveBuilder()
-                .onMessage(RootActor.class, ra -> !isPerson(ra), this::displayName)
-                .onMessage(RootActor.class, this::isPerson, this::callPerson)
+    private Behavior<RootCommand> messagesBehaviour() {
+        return Behaviors.receive(RootCommand.class)
+                .onMessage(RootActor.class, this::checkVehicleNumber)
+                .onMessage(RecordResponse.class, this::propagateResponse)
                 .build();
     }
 
-    private RootBehaviour displayName(RootActor param) {
-        getContext().getLog().info("Method: {}, message: {}", "displayName", param);
-        return this;
+    private Behavior<RootCommand> propagateResponse(RecordResponse response) {
+        context.getLog().info("Received response: {}", response);
+        return Behaviors.same();
     }
 
-    private boolean isPerson(RootActor actor) {
-        return "person".equals(actor.getName());
+
+    private Behavior<RootCommand> checkVehicleNumber(RootActor param) {
+
+        context.getLog().info("Method: {}, message: {}", "callPerson", param);
+        vehicleActorRef.tell(new VehicleMessage(param.getName(), context.getSelf()));
+
+        return Behaviors.same();
     }
 
-    private RootBehaviour callPerson(RootActor param) {
-        Person person = new Person();
-        person.setFirstName("test user");
+    public static class RootActor implements RootCommand {
 
-        getContext().getLog().info("Method: {}, message: {}", "callPerson", param);
-
-        personActorRef.tell(person);
-
-        return this;
-    }
-
-    @Data
-    @NoArgsConstructor
-    public static class RootActor {
-
-        private String name;
+        private final String name;
 
         public RootActor(String name) {
             this.name = name;
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("RootActor{");
+            sb.append("name='").append(name).append('\'');
+            sb.append('}');
+            return sb.toString();
         }
 
     }

@@ -1,2 +1,2 @@
 # akka-playground
-Akka with Spring Boot study project
+Akka Actor study project
